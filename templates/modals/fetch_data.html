@@ -1,0 +1,273 @@
+<!-- Fetch Data Modal -->
+<div class="modal fade" id="fetch-data-modal" tabindex="-1" aria-labelledby="fetchDataModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="fetchDataModalLabel">Fetch Financial Data</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="fetch-alert-container"></div>
+                
+                <form id="fetch-data-form">
+                    <div class="mb-3">
+                        <label for="fetch-endpoint" class="form-label">API Endpoint <span class="text-danger">*</span></label>
+                        <select class="form-select" id="fetch-endpoint" name="endpoint-id" required>
+                            <option value="">Select an endpoint...</option>
+                            {% for endpoint in endpoints %}
+                            <option value="{{ endpoint.id }}" data-parameters="{{ endpoint.parameters|tojson }}">
+                                {{ endpoint.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div id="fetch-parameters-container">
+                        <!-- Parameters will be loaded dynamically based on endpoint selection -->
+                    </div>
+                    
+                    <div class="alert alert-info mb-3">
+                        <i data-feather="info"></i>
+                        <strong>Note:</strong> Data fetching may take some time depending on the amount of data requested.
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary" id="fetch-data-btn">
+                            <i data-feather="download"></i> Fetch Data
+                        </button>
+                    </div>
+                </form>
+                
+                <div id="fetch-result" class="mt-3 d-none">
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border text-primary me-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span>Fetching data, please wait...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize fetch data form
+        const fetchForm = document.getElementById('fetch-data-form');
+        const endpointSelect = document.getElementById('fetch-endpoint');
+        
+        if (fetchForm && endpointSelect) {
+            // Handle endpoint selection change
+            endpointSelect.addEventListener('change', function() {
+                updateFetchParameterForm(this.value);
+            });
+            
+            // Handle form submission
+            fetchForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const endpointId = endpointSelect.value;
+                if (!endpointId) {
+                    showFetchAlert('Please select an API endpoint.', 'danger');
+                    return;
+                }
+                
+                // Get parameters
+                const parameters = getFetchParameters();
+                
+                // Show loading
+                document.getElementById('fetch-result').classList.remove('d-none');
+                document.getElementById('fetch-data-btn').disabled = true;
+                
+                // Send fetch request
+                fetch('/api/fetch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        endpoint_id: endpointId,
+                        parameters: parameters
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Hide loading
+                    document.getElementById('fetch-result').classList.add('d-none');
+                    document.getElementById('fetch-data-btn').disabled = false;
+                    
+                    if (data.error) {
+                        showFetchAlert(data.error, 'danger');
+                        return;
+                    }
+                    
+                    // Show success message
+                    showFetchAlert(data.message, 'success');
+                    
+                    // Close modal after success
+                    setTimeout(() => {
+                        bootstrap.Modal.getInstance(document.getElementById('fetch-data-modal')).hide();
+                        // Refresh page if we're on the dashboard
+                        if (window.location.pathname === '/') {
+                            window.location.reload();
+                        }
+                    }, 2000);
+                })
+                .catch(error => {
+                    // Hide loading
+                    document.getElementById('fetch-result').classList.add('d-none');
+                    document.getElementById('fetch-data-btn').disabled = false;
+                    
+                    console.error('Error fetching data:', error);
+                    showFetchAlert(`Error fetching data: ${error.message}`, 'danger');
+                });
+            });
+        }
+    });
+    
+    /**
+     * Update parameter form based on selected endpoint
+     * @param {string} endpointId - The selected endpoint ID
+     */
+    function updateFetchParameterForm(endpointId) {
+        if (!endpointId) return;
+        
+        const paramContainer = document.getElementById('fetch-parameters-container');
+        if (!paramContainer) return;
+        
+        // Get endpoint data from the data attributes
+        const endpointSelect = document.getElementById('fetch-endpoint');
+        const selectedOption = endpointSelect.options[endpointSelect.selectedIndex];
+        
+        if (!selectedOption) {
+            paramContainer.innerHTML = '<div class="alert alert-info">No parameters required</div>';
+            return;
+        }
+        
+        const parameters = selectedOption.getAttribute('data-parameters');
+        if (!parameters) {
+            paramContainer.innerHTML = '<div class="alert alert-info">No parameters required</div>';
+            return;
+        }
+        
+        try {
+            const params = JSON.parse(parameters);
+            
+            // Build parameter form fields
+            let paramHtml = '<div class="mt-3"><h6>Parameters</h6>';
+            
+            Object.entries(params).forEach(([paramName, paramInfo]) => {
+                const isRequired = paramInfo.required;
+                
+                paramHtml += `
+                    <div class="mb-3">
+                        <label for="fetch-param-${paramName}" class="form-label">
+                            ${paramName} ${isRequired ? '<span class="text-danger">*</span>' : ''}
+                        </label>
+                `;
+                
+                if (paramInfo.options) {
+                    // Select dropdown for options
+                    paramHtml += `
+                        <select class="form-select" id="fetch-param-${paramName}" name="fetch-param-${paramName}" 
+                                ${isRequired ? 'required' : ''}>
+                    `;
+                    
+                    paramInfo.options.forEach(option => {
+                        const isDefault = option === paramInfo.default;
+                        paramHtml += `
+                            <option value="${option}" ${isDefault ? 'selected' : ''}>${option}</option>
+                        `;
+                    });
+                    
+                    paramHtml += '</select>';
+                } else {
+                    // Text input for other parameters
+                    paramHtml += `
+                        <input type="${paramInfo.type === 'integer' ? 'number' : 'text'}" 
+                               class="form-control" id="fetch-param-${paramName}" name="fetch-param-${paramName}"
+                               placeholder="${paramInfo.description || ''}"
+                               ${isRequired ? 'required' : ''}
+                               ${paramInfo.default ? `value="${paramInfo.default}"` : ''}>
+                    `;
+                }
+                
+                // Add description if available
+                if (paramInfo.description) {
+                    paramHtml += `
+                        <div class="form-text">${paramInfo.description}</div>
+                    `;
+                }
+                
+                paramHtml += '</div>';
+            });
+            
+            paramHtml += '</div>';
+            paramContainer.innerHTML = paramHtml;
+            
+        } catch (error) {
+            console.error('Error parsing parameters:', error);
+            paramContainer.innerHTML = '<div class="alert alert-danger">Error loading parameters</div>';
+        }
+    }
+    
+    /**
+     * Get parameters from the fetch form inputs
+     * @returns {Object} Parameters object
+     */
+    function getFetchParameters() {
+        const params = {};
+        const paramContainer = document.getElementById('fetch-parameters-container');
+        if (!paramContainer) return params;
+        
+        // Get all parameter inputs
+        const paramInputs = paramContainer.querySelectorAll('input, select');
+        paramInputs.forEach(input => {
+            const paramName = input.name.replace('fetch-param-', '');
+            let value = input.value;
+            
+            // Convert to appropriate type if needed
+            if (input.type === 'number') {
+                value = parseInt(value, 10);
+            }
+            
+            if (paramName && value) {
+                params[paramName] = value;
+            }
+        });
+        
+        return params;
+    }
+    
+    /**
+     * Show an alert message in the fetch modal
+     * @param {string} message - The message to show
+     * @param {string} type - The alert type (success, danger, etc.)
+     */
+    function showFetchAlert(message, type = 'info') {
+        const container = document.getElementById('fetch-alert-container');
+        if (!container) return;
+        
+        const alertEl = document.createElement('div');
+        alertEl.className = `alert alert-${type} alert-dismissible fade show`;
+        alertEl.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        container.innerHTML = '';
+        container.appendChild(alertEl);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            if (alertEl.parentNode) {
+                const alert = bootstrap.Alert.getOrCreateInstance(alertEl);
+                alert.close();
+            }
+        }, 5000);
+    }
+</script>

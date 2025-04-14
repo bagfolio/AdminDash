@@ -1,0 +1,206 @@
+/* 
+ * Custom styles for Financial Dashboard
+ * These styles complement the Bootstrap framework
+ */
+
+/* Dashboard card styles */
+.dashboard-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+}
+
+.dashboard-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.card-icon {
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Stat counter for dashboard metrics */
+.stat-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: var(--bs-gray-600);
+}
+
+/* Sidebar styles */
+.sidebar {
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 100;
+    padding-top: 56px; /* Adjust for navbar height */
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.sidebar .nav-link {
+    color: var(--bs-gray-700);
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+
+.sidebar .nav-link:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.sidebar .nav-link.active {
+    color: var(--bs-primary);
+    background-color: rgba(var(--bs-primary-rgb), 0.1);
+    font-weight: 500;
+}
+
+.sidebar .nav-link .feather {
+    margin-right: 0.5rem;
+}
+
+/* Main content area */
+.main-content {
+    margin-left: 260px; /* Adjust based on sidebar width */
+    padding: 2rem;
+}
+
+/* For mobile screens - collapse sidebar */
+@media (max-width: 767.98px) {
+    .sidebar {
+        position: static;
+        height: auto;
+        padding-top: 0;
+        border-right: none;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    
+    .main-content {
+        margin-left: 0;
+        padding: 1rem;
+    }
+}
+
+/* Formula card styles */
+.formula-card {
+    margin-bottom: 1.5rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.formula-text {
+    font-family: monospace;
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    margin-top: 0.5rem;
+}
+
+/* Database table styles */
+.table-data-container {
+    overflow-x: auto;
+    max-height: 600px;
+}
+
+.json-preview {
+    max-height: 150px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 0.75rem;
+    background-color: var(--bs-gray-100);
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+}
+
+/* Query editor styles */
+#query-editor {
+    font-family: monospace;
+    resize: vertical;
+    min-height: 120px;
+}
+
+/* Loading indicator */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.loading-spinner {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Chart container styles */
+.chart-container {
+    position: relative;
+    height: 300px;
+    margin-bottom: 1.5rem;
+}
+
+/* Refresh button animation */
+.refresh-btn .spinner-border {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* Task list styles */
+.task-list-item {
+    border-left: 4px solid var(--bs-primary);
+    transition: transform 0.1s;
+}
+
+.task-list-item:hover {
+    transform: translateX(5px);
+}
+
+/* Data freshness indicator */
+.freshness-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.5rem;
+}
+
+.freshness-recent {
+    background-color: var(--bs-success);
+}
+
+.freshness-medium {
+    background-color: var(--bs-warning);
+}
+
+.freshness-stale {
+    background-color: var(--bs-danger);
+}
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bs-gray-200);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--bs-gray-400);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--bs-gray-500);
+}

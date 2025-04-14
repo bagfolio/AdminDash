@@ -1,0 +1,227 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Page header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">Dashboard</h1>
+        <button class="btn btn-primary refresh-btn" onclick="refreshDashboard()">
+            <i data-feather="refresh-cw"></i>
+            <span>Refresh</span>
+            <span id="refresh-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+        </button>
+    </div>
+    
+    <!-- Stats cards -->
+    <div class="row g-4 mb-4">
+        <!-- Companies count -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card dashboard-card h-100">
+                <div class="card-body text-center">
+                    <div class="card-icon text-primary">
+                        <i data-feather="briefcase"></i>
+                    </div>
+                    <h5 class="card-title">Companies</h5>
+                    <div class="stat-value" data-value="{{ company_count }}">{{ company_count }}</div>
+                    <div class="stat-label">Companies tracked</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Financial statements count -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card dashboard-card h-100">
+                <div class="card-body text-center">
+                    <div class="card-icon text-success">
+                        <i data-feather="file-text"></i>
+                    </div>
+                    <h5 class="card-title">Financial Statements</h5>
+                    <div class="stat-value" data-value="{{ statement_count }}">{{ statement_count }}</div>
+                    <div class="stat-label">Statements stored</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Stock prices count -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card dashboard-card h-100">
+                <div class="card-body text-center">
+                    <div class="card-icon text-info">
+                        <i data-feather="trending-up"></i>
+                    </div>
+                    <h5 class="card-title">Stock Prices</h5>
+                    <div class="stat-value" data-value="{{ price_count }}">{{ price_count }}</div>
+                    <div class="stat-label">Price points</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Custom formulas count -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card dashboard-card h-100">
+                <div class="card-body text-center">
+                    <div class="card-icon text-warning">
+                        <i data-feather="code"></i>
+                    </div>
+                    <h5 class="card-title">Custom Formulas</h5>
+                    <div class="stat-value" data-value="{{ formula_count }}">{{ formula_count }}</div>
+                    <div class="stat-label">Formulas defined</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Data freshness and activity -->
+    <div class="row g-4">
+        <!-- Data freshness -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Data Freshness</h5>
+                </div>
+                <div class="card-body">
+                    {% if latest_price or latest_statement %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Data Type</th>
+                                    <th>Last Updated</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if latest_price %}
+                                <tr>
+                                    <td>Stock Prices</td>
+                                    <td>{{ latest_price.date.strftime('%Y-%m-%d') }}</td>
+                                    <td>
+                                        {% set days_old = (now - latest_price.date).days %}
+                                        {% if days_old <= 1 %}
+                                            <span class="freshness-indicator freshness-recent"></span> Recent
+                                        {% elif days_old <= 7 %}
+                                            <span class="freshness-indicator freshness-medium"></span> Within week
+                                        {% else %}
+                                            <span class="freshness-indicator freshness-stale"></span> Stale
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                
+                                {% if latest_statement %}
+                                <tr>
+                                    <td>Financial Statements</td>
+                                    <td>{{ latest_statement.last_updated.strftime('%Y-%m-%d') }}</td>
+                                    <td>
+                                        {% set days_old = (now - latest_statement.last_updated).days %}
+                                        {% if days_old <= 1 %}
+                                            <span class="freshness-indicator freshness-recent"></span> Recent
+                                        {% elif days_old <= 7 %}
+                                            <span class="freshness-indicator freshness-medium"></span> Within week
+                                        {% else %}
+                                            <span class="freshness-indicator freshness-stale"></span> Stale
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i data-feather="info"></i> No data freshness information available. Try fetching some data first.
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mt-3">
+                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#fetch-data-modal">
+                            <i data-feather="download"></i> Fetch Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent activity -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Recent API Activity</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_logs %}
+                    <div class="table-responsive">
+                        <table class="table" id="activity-log-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Endpoint</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in recent_logs %}
+                                <tr>
+                                    <td>{{ log.timestamp.strftime('%H:%M:%S') }}</td>
+                                    <td>{{ log.endpoint }}</td>
+                                    <td>{{ 'Success' if log.success else 'Failed' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i data-feather="info"></i> No recent API activity. Try fetching some data.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts row -->
+    <div class="row g-4 mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">API Activity Over Time</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="recent-data-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Refresh toast notification -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11;">
+    <div id="refresh-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <strong class="me-auto">Dashboard</strong>
+            <small>Just now</small>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            Dashboard data has been refreshed successfully.
+        </div>
+    </div>
+</div>
+
+<!-- Include fetch data modal -->
+{% include 'modals/fetch_data.html' %}
+
+{% endblock %}
+
+{% block scripts %}
+<!-- Dashboard specific scripts -->
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+    // Set current date for freshness calculations
+    const now = new Date();
+</script>
+{% endblock %}

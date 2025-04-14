@@ -1,0 +1,307 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Page header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">Settings</h1>
+    </div>
+    
+    <!-- Alert container -->
+    <div id="alert-container"></div>
+    
+    <div class="row g-4">
+        <!-- API Configuration -->
+        <div class="col-md-7">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">API Endpoints</h5>
+                    <button class="btn btn-sm btn-primary" id="sync-endpoints-btn" onclick="syncEndpoints()">
+                        <i data-feather="refresh-cw"></i> Sync Endpoints
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <div class="alert alert-info">
+                            <i data-feather="info"></i>
+                            The Financial Modeling Prep (FMP) API provides financial data for companies, stocks, and markets.
+                            Below are the configured endpoints available for data fetching.
+                        </div>
+                    </div>
+                    
+                    {% if endpoints %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Endpoint Path</th>
+                                    <th>Model</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for endpoint in endpoints %}
+                                <tr>
+                                    <td>{{ endpoint.name }}</td>
+                                    <td><code>{{ endpoint.endpoint_path }}</code></td>
+                                    <td>
+                                        {% if endpoint.response_model %}
+                                        <span class="badge bg-info">{{ endpoint.response_model }}</span>
+                                        {% else %}
+                                        <span class="text-muted">Unknown</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#fetch-data-modal" 
+                                                onclick="prefillEndpoint({{ endpoint.id }}, '{{ endpoint.name }}')">
+                                            <i data-feather="download"></i> Fetch
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <i data-feather="alert-triangle"></i> No API endpoints are configured. Click "Sync Endpoints" to configure them.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- API Stats -->
+        <div class="col-md-5">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">API Usage Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-sm-4">
+                            <div class="card bg-primary text-white text-center">
+                                <div class="card-body">
+                                    <h6 class="card-title">Total Calls</h6>
+                                    <h3 class="mb-0">{{ total_calls }}</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="card bg-success text-white text-center">
+                                <div class="card-body">
+                                    <h6 class="card-title">Successful</h6>
+                                    <h3 class="mb-0">{{ successful_calls }}</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="card bg-danger text-white text-center">
+                                <div class="card-body">
+                                    <h6 class="card-title">Failed</h6>
+                                    <h3 class="mb-0">{{ failed_calls }}</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <h6>Performance</h6>
+                        <div class="progress mb-3" style="height: 25px;">
+                            {% set success_percent = (successful_calls / total_calls * 100) if total_calls > 0 else 0 %}
+                            <div class="progress-bar bg-success" role="progressbar" 
+                                 style="width: {{ success_percent }}%;" 
+                                 aria-valuenow="{{ success_percent }}" aria-valuemin="0" aria-valuemax="100">
+                                {{ success_percent|round|int }}% Success
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>Average Response Time:</span>
+                            <span class="badge bg-info p-2">{{ avg_time }} seconds</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Add New Endpoint</h5>
+                </div>
+                <div class="card-body">
+                    <form id="endpoint-form">
+                        <div class="mb-3">
+                            <label for="endpoint-name" class="form-label">Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="endpoint-name" name="endpoint-name" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="endpoint-path" class="form-label">Endpoint Path <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="endpoint-path" name="endpoint-path" required>
+                            <div class="form-text">e.g., "quote/{symbol}" or "historical-price-full/{symbol}"</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="endpoint-description" class="form-label">Description</label>
+                            <textarea class="form-control" id="endpoint-description" name="endpoint-description" rows="2"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="response-model" class="form-label">Response Model</label>
+                            <select class="form-select" id="response-model" name="response-model">
+                                <option value="">Select a model...</option>
+                                <option value="Company">Company</option>
+                                <option value="FinancialStatement">Financial Statement</option>
+                                <option value="StockPrice">Stock Price</option>
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Add Endpoint</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Include fetch data modal -->
+{% include 'modals/fetch_data.html' %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize endpoint form
+    document.addEventListener('DOMContentLoaded', function() {
+        const endpointForm = document.getElementById('endpoint-form');
+        if (endpointForm) {
+            endpointForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const name = document.getElementById('endpoint-name').value.trim();
+                const endpointPath = document.getElementById('endpoint-path').value.trim();
+                const description = document.getElementById('endpoint-description').value.trim();
+                const responseModel = document.getElementById('response-model').value;
+                
+                if (!name || !endpointPath) {
+                    showAlert('Please enter a name and endpoint path.', 'danger');
+                    return;
+                }
+                
+                // Create endpoint data object
+                const endpointData = {
+                    name: name,
+                    endpoint_path: endpointPath,
+                    description: description,
+                    response_model: responseModel || null,
+                    parameters: {}
+                };
+                
+                // Send to server
+                fetch('/api/endpoints', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(endpointData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showAlert(data.error, 'danger');
+                        return;
+                    }
+                    
+                    // Show success message and refresh
+                    showAlert('Endpoint created successfully!', 'success');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                })
+                .catch(error => {
+                    console.error('Error creating endpoint:', error);
+                    showAlert(`Error creating endpoint: ${error.message}`, 'danger');
+                });
+            });
+        }
+    });
+    
+    // Sync endpoints from FMP API
+    function syncEndpoints() {
+        const syncBtn = document.getElementById('sync-endpoints-btn');
+        
+        // Disable button and show loading
+        syncBtn.disabled = true;
+        syncBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Syncing...';
+        
+        // Send request to sync endpoints
+        fetch('/api/endpoints/sync', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Enable button
+            syncBtn.disabled = false;
+            syncBtn.innerHTML = '<i data-feather="refresh-cw"></i> Sync Endpoints';
+            feather.replace(); // Reinitialize icons
+            
+            if (data.error) {
+                showAlert(data.error, 'danger');
+                return;
+            }
+            
+            // Show success message and refresh
+            showAlert(data.message, 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        })
+        .catch(error => {
+            // Enable button
+            syncBtn.disabled = false;
+            syncBtn.innerHTML = '<i data-feather="refresh-cw"></i> Sync Endpoints';
+            feather.replace(); // Reinitialize icons
+            
+            console.error('Error syncing endpoints:', error);
+            showAlert(`Error syncing endpoints: ${error.message}`, 'danger');
+        });
+    }
+    
+    // Prefill endpoint in fetch modal
+    function prefillEndpoint(endpointId, endpointName) {
+        const endpointSelect = document.getElementById('fetch-endpoint');
+        if (endpointSelect) {
+            endpointSelect.value = endpointId;
+            
+            // Trigger change event to update parameter form
+            const event = new Event('change');
+            endpointSelect.dispatchEvent(event);
+        }
+    }
+    
+    // Show an alert message
+    function showAlert(message, type = 'info') {
+        const container = document.getElementById('alert-container');
+        if (!container) return;
+        
+        const alertEl = document.createElement('div');
+        alertEl.className = `alert alert-${type} alert-dismissible fade show`;
+        alertEl.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        container.innerHTML = '';
+        container.appendChild(alertEl);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            const alert = bootstrap.Alert.getOrCreateInstance(alertEl);
+            alert.close();
+        }, 5000);
+    }
+</script>
+{% endblock %}

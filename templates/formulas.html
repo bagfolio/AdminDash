@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Page header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">Custom Formulas</h1>
+    </div>
+    
+    <!-- Alert container -->
+    <div id="alert-container"></div>
+    
+    <div class="row g-4">
+        <!-- Formula form card -->
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0" id="formula-form-title">Create New Formula</h5>
+                </div>
+                <div class="card-body">
+                    <form id="formula-form">
+                        <div class="mb-3">
+                            <label for="formula-name" class="form-label">Formula Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="formula-name" name="formula-name" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="formula-description" class="form-label">Description</label>
+                            <textarea class="form-control" id="formula-description" name="formula-description" rows="2"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="variable-select" class="form-label">Add Variable</label>
+                            <select class="form-select" id="variable-select">
+                                <option value="">Select a variable...</option>
+                                <optgroup label="Financial Statement Data">
+                                    {% for var in variables.financial_statement %}
+                                    <option value="{{ var }}">{{ var }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                                <optgroup label="Stock Price Data">
+                                    {% for var in variables.stock_price %}
+                                    <option value="{{ var }}">{{ var }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                                <optgroup label="Custom Metrics">
+                                    {% for var in variables.custom %}
+                                    <option value="{{ var }}">{{ var }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="formula-text" class="form-label">Formula Expression <span class="text-danger">*</span></label>
+                            <textarea class="form-control font-monospace" id="formula-text" name="formula-text" rows="5" required
+                                placeholder="e.g., revenue / totalAssets"></textarea>
+                            <div class="form-text">
+                                Use standard arithmetic operators (+, -, *, /) and variables from the dropdown above.
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i data-feather="info"></i>
+                            <strong>Examples:</strong>
+                            <ul class="mb-0">
+                                <li>Revenue Growth: <code>(revenue - revenue_prev) / revenue_prev</code></li>
+                                <li>P/E Ratio: <code>close / eps</code></li>
+                                <li>Gross Margin: <code>grossProfit / revenue</code></li>
+                            </ul>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary" id="formula-submit-btn">Create Formula</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Formula list -->
+        <div class="col-md-7">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Saved Formulas</h5>
+                </div>
+                <div class="card-body">
+                    {% if formulas %}
+                    <div class="row g-3">
+                        {% for formula in formulas %}
+                        <div class="col-12">
+                            <div class="card formula-card" data-formula-id="{{ formula.id }}">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h5 class="card-title formula-name">{{ formula.name }}</h5>
+                                        <div>
+                                            <button class="btn btn-sm btn-outline-primary calculate-formula-btn" 
+                                                    data-formula-id="{{ formula.id }}" 
+                                                    data-formula-name="{{ formula.name }}">
+                                                <i data-feather="calculator"></i> Calculate
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-secondary edit-formula-btn"
+                                                    data-formula-id="{{ formula.id }}">
+                                                <i data-feather="edit"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger delete-formula-btn"
+                                                    data-formula-id="{{ formula.id }}"
+                                                    data-formula-name="{{ formula.name }}">
+                                                <i data-feather="trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <p class="card-text formula-description">{{ formula.description or 'No description' }}</p>
+                                    <div class="formula-text mb-3">{{ formula.formula_text }}</div>
+                                    
+                                    <div class="d-flex justify-content-between">
+                                        <small class="text-muted">Variables: 
+                                            {% for var in formula.variables %}
+                                            <span class="badge bg-secondary">{{ var }}</span>
+                                            {% endfor %}
+                                        </small>
+                                        <small class="text-muted">Created: {{ formula.created_at.strftime('%Y-%m-%d') }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i data-feather="info"></i> No formulas have been created yet. Use the form to create your first formula.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Calculation Modal -->
+<div class="modal fade" id="calculate-modal" tabindex="-1" aria-labelledby="calculateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="calculateModalLabel">Calculate Formula: <span id="calc-formula-name"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="calc-alert"></div>
+                
+                <form id="calculate-form">
+                    <input type="hidden" id="calc-formula-id" name="calc-formula-id">
+                    
+                    <div class="mb-3">
+                        <label for="calc-symbols" class="form-label">Stock Symbols <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="calc-symbols" name="calc-symbols" 
+                               placeholder="e.g., AAPL, MSFT, GOOG" required>
+                        <div class="form-text">Enter one or more symbols separated by commas.</div>
+                    </div>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="calc-start-date" class="form-label">Start Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="calc-start-date" name="calc-start-date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="calc-end-date" class="form-label">End Date</label>
+                            <input type="date" class="form-control" id="calc-end-date" name="calc-end-date">
+                            <div class="form-text">Optional. Uses current date if not specified.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary">Calculate</button>
+                    </div>
+                </form>
+                
+                <div id="calculation-results" class="mt-4">
+                    <!-- Results will appear here -->
+                </div>
+                
+                <div id="result-chart-container" class="chart-container mt-4">
+                    <!-- Chart will appear here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+{% include 'modals/confirm.html' with context %}
+
+{% endblock %}
+
+{% block scripts %}
+<!-- Formula specific scripts -->
+<script src="{{ url_for('static', filename='js/formulas.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+{% endblock %}

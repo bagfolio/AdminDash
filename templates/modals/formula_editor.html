@@ -1,0 +1,223 @@
+<!-- Formula Editor Modal -->
+<div class="modal fade" id="formula-editor-modal" tabindex="-1" aria-labelledby="formulaEditorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="formulaEditorModalLabel">Edit Formula</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="editor-alert-container"></div>
+                
+                <form id="modal-formula-form">
+                    <input type="hidden" id="edit-formula-id">
+                    
+                    <div class="mb-3">
+                        <label for="edit-formula-name" class="form-label">Formula Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="edit-formula-name" name="edit-formula-name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-formula-description" class="form-label">Description</label>
+                        <textarea class="form-control" id="edit-formula-description" name="edit-formula-description" rows="2"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-variable-select" class="form-label">Add Variable</label>
+                        <select class="form-select" id="edit-variable-select">
+                            <option value="">Select a variable...</option>
+                            <optgroup label="Financial Statement Data">
+                                <option value="revenue">revenue</option>
+                                <option value="netIncome">netIncome</option>
+                                <option value="totalAssets">totalAssets</option>
+                                <option value="totalLiabilities">totalLiabilities</option>
+                                <option value="operatingIncome">operatingIncome</option>
+                                <option value="ebitda">ebitda</option>
+                                <option value="eps">eps</option>
+                                <option value="grossProfit">grossProfit</option>
+                            </optgroup>
+                            <optgroup label="Stock Price Data">
+                                <option value="open">open</option>
+                                <option value="high">high</option>
+                                <option value="low">low</option>
+                                <option value="close">close</option>
+                                <option value="volume">volume</option>
+                            </optgroup>
+                            <optgroup label="Custom Metrics">
+                                <option value="pe_ratio">pe_ratio</option>
+                                <option value="price_to_book">price_to_book</option>
+                                <option value="debt_to_equity">debt_to_equity</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-formula-text" class="form-label">Formula Expression <span class="text-danger">*</span></label>
+                        <textarea class="form-control font-monospace" id="edit-formula-text" name="edit-formula-text" rows="5" required></textarea>
+                        <div class="form-text">
+                            Use standard arithmetic operators (+, -, *, /) and variables from the dropdown above.
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i data-feather="info"></i>
+                        <strong>Examples:</strong>
+                        <ul class="mb-0">
+                            <li>Revenue Growth: <code>(revenue - revenue_prev) / revenue_prev</code></li>
+                            <li>P/E Ratio: <code>close / eps</code></li>
+                            <li>Gross Margin: <code>grossProfit / revenue</code></li>
+                        </ul>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-formula-btn">Save Formula</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize variable selection for modal
+        const variableSelect = document.getElementById('edit-variable-select');
+        if (variableSelect) {
+            variableSelect.addEventListener('change', function() {
+                const selectedVariable = this.value;
+                if (!selectedVariable) return;
+                
+                // Get the formula text element
+                const formulaText = document.getElementById('edit-formula-text');
+                if (!formulaText) return;
+                
+                // Insert the variable at the cursor position or at the end
+                if (formulaText.selectionStart || formulaText.selectionStart === 0) {
+                    const startPos = formulaText.selectionStart;
+                    const endPos = formulaText.selectionEnd;
+                    formulaText.value = formulaText.value.substring(0, startPos) + 
+                        selectedVariable + 
+                        formulaText.value.substring(endPos, formulaText.value.length);
+                    formulaText.focus();
+                    formulaText.selectionStart = startPos + selectedVariable.length;
+                    formulaText.selectionEnd = startPos + selectedVariable.length;
+                } else {
+                    formulaText.value += selectedVariable;
+                    formulaText.focus();
+                }
+            });
+        }
+        
+        // Initialize save button
+        const saveBtn = document.getElementById('save-formula-btn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', function() {
+                saveEditedFormula();
+            });
+        }
+    });
+    
+    /**
+     * Load formula data into the editor modal
+     * @param {Object} formula - The formula data
+     */
+    function loadFormulaIntoEditor(formula) {
+        document.getElementById('edit-formula-id').value = formula.id;
+        document.getElementById('edit-formula-name').value = formula.name;
+        document.getElementById('edit-formula-description').value = formula.description || '';
+        document.getElementById('edit-formula-text').value = formula.formula_text;
+        
+        // Set modal title
+        document.getElementById('formulaEditorModalLabel').textContent = `Edit Formula: ${formula.name}`;
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('formula-editor-modal'));
+        modal.show();
+    }
+    
+    /**
+     * Save the edited formula
+     */
+    function saveEditedFormula() {
+        const formulaId = document.getElementById('edit-formula-id').value;
+        const formulaName = document.getElementById('edit-formula-name').value.trim();
+        const formulaDesc = document.getElementById('edit-formula-description').value.trim();
+        const formulaText = document.getElementById('edit-formula-text').value.trim();
+        
+        if (!formulaName || !formulaText) {
+            showEditorAlert('Please enter a formula name and expression.', 'danger');
+            return;
+        }
+        
+        // Get variables from formula text
+        const variableMatches = formulaText.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
+        const variables = [...new Set(variableMatches)].filter(v => {
+            // Filter out common math functions
+            return !['sin', 'cos', 'tan', 'log', 'exp', 'pow', 'sqrt', 'abs', 'min', 'max'].includes(v);
+        });
+        
+        // Create formula data object
+        const formulaData = {
+            name: formulaName,
+            description: formulaDesc,
+            formula_text: formulaText,
+            variables: variables
+        };
+        
+        // Send to server - for simplicity, we'll use the same endpoint as create
+        fetch('/api/formulas', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formulaData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showEditorAlert(data.error, 'danger');
+                return;
+            }
+            
+            // Show success message and close modal
+            showEditorAlert('Formula saved successfully!', 'success');
+            setTimeout(() => {
+                bootstrap.Modal.getInstance(document.getElementById('formula-editor-modal')).hide();
+                // Refresh the page
+                window.location.reload();
+            }, 1500);
+        })
+        .catch(error => {
+            console.error('Error saving formula:', error);
+            showEditorAlert(`Error saving formula: ${error.message}`, 'danger');
+        });
+    }
+    
+    /**
+     * Show an alert message in the editor modal
+     * @param {string} message - The message to show
+     * @param {string} type - The alert type (success, danger, etc.)
+     */
+    function showEditorAlert(message, type = 'info') {
+        const container = document.getElementById('editor-alert-container');
+        if (!container) return;
+        
+        const alertEl = document.createElement('div');
+        alertEl.className = `alert alert-${type} alert-dismissible fade show`;
+        alertEl.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        container.innerHTML = '';
+        container.appendChild(alertEl);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            if (alertEl.parentNode) {
+                const alert = bootstrap.Alert.getOrCreateInstance(alertEl);
+                alert.close();
+            }
+        }, 5000);
+    }
+</script>
